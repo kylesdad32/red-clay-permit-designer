@@ -100,21 +100,7 @@ async def property_lookup(address:str):
                                 'attributes':feature.get('attributes',{}),
                                 'plat_verified':False,
                                 'geocode_location':loc,
-                                'assessor_sketch': await _find_assessor_sketch(client, next((str(v) for k,v in feature.get('attributes',{}).items() if v and re.search(r'^(account|accountno|account_num|propertyid|property_id|prop_id|parcelid)
-                    errors.append(name+': no intersecting parcel')
-                except Exception as e:
-                    errors.append(name+': '+str(e)[:120])
-            return {
-                'address':c['address'],
-                'score':c['score'],
-                'type':'NO PARCEL VERIFIED',
-                'plat_verified':False,
-                'errors':errors,
-                'geocode_location':loc
-            }
-        except httpx.RequestError as e:
-            raise HTTPException(502,'External GIS service unavailable: '+str(e)[:120])
-,k,re.I)), ''))
+                                'assessor_sketch': await _find_assessor_sketch(client, next((str(v) for k,v in feature.get('attributes',{}).items() if v and re.search(r'^(account|accountno|account_num|propertyid|property_id|prop_id|parcelid)$',k,re.I)), ''))
                             }
                     errors.append(name+': no intersecting parcel')
                 except Exception as e:
