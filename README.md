@@ -1,29 +1,33 @@
-# Red Clay Permit Designer — deployable starter
+# Red Clay Permit Designer
 
-## Run locally
+FastAPI app deployed on Render from the GitHub `main` branch.
 
-```bash
+## Run
+
+```sh
 pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000
 ```
 
-Open http://localhost:8000. To deploy, use any Python web host supporting FastAPI/uvicorn. No ArcGIS API key is required for the public endpoints used here, but upstream services can change or throttle requests.
+## Automatic dimensioned building sketches
 
-## What works
+`GET /api/property?address=420%20SW%202nd%20St,%20Moore,%20OK%2073160`
 
-- Server-side address geocoding and two public Cleveland County/Moore parcel dataset fallbacks.
-- Visible parcel polygon when a parcel is returned, plus a clear source label.
-- Point-to-point drawing, post markers, two-point dimension calibration, image overlay, local save/load, SVG export and browser PDF printing.
-- Unaltered original user-provided logo embedded as an image.
+The Cleveland County adapter initializes the public Spatialest session and CSRF token, submits an address-category search to `api/v2/search`, verifies the record's `FormattedLocation` through `api/v1/recordcard/{account}`, and reads the county's published image list from `https://api.spatialest.com/v1/ok/cleveland/images-api/{imageid}`. Only the image CDN's `cleveland-images/.../Sketch/` resources are accepted. Photos, aerial images, and parcel polygons are never substituted.
 
-## Not implemented / limitations
+The original image is validated and embedded into the drawing canvas, saved projects, printed output, and exported SVG. Multiple published sketches appear in a selector. New lookups clear previous property images and annotations. Calibrate from a printed wall dimension before adding a carport.
 
-- **Automatic original recorded plat retrieval**: Cleveland County Clerk's public search is an interactive record-search website; no documented public machine-readable document API was confirmed. The application never claims that GIS polygons are recorded plats.
-- No cadastral survey-grade positioning, authoritative setbacks, verified structural engineering, or guaranteed permit acceptance.
-- No persistent cloud account/database; projects save in browser localStorage, not across devices.
-- GIS lookup currently targets Cleveland County/Moore; other city selections do not imply other county integrations.
-- The dimension calibration is based on screen points, not authoritative ground coordinates; drawing width/depth fields are project notes, not constraints on the outline.
+Test address: **420 SW 2nd St, Moore, OK 73160** resolves to **account 4889**, with published sketch `Sketch/4889_1.jpg`.
 
-## Next production steps
+`/api/assessor-sketch` also accepts an `address` or numeric `account`. Optional GIS parcel lookup remains available separately at `/api/parcel`; it is not used for sketch retrieval or superimposed on the building sketch.
 
-Obtain county-clerk access/license for recorded document retrieval, implement county-specific document adapters, verify legal descriptions and document matches, add authenticated project storage and a true CAD-like constrained editor, then complete jurisdiction-specific compliance verification.
+## Validation
+
+```sh
+python -m unittest discover -s tests -v
+python -m py_compile main.py assessor.py
+```
+
+## Scope
+
+Automatic sketches currently cover Cleveland County, Oklahoma. An assessor building sketch is a building-dimension reference, not a surveyed site plan or recorded plat. Dimensions remain the assessor's original raster labels. County service outages or missing/ambiguous records return explicit errors instead of unrelated imagery. Projects save in browser localStorage.
