@@ -4,7 +4,7 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import httpx
 
-app=FastAPI(title='Red Clay Permit Designer',version='1.2')
+app=FastAPI(title='Red Clay Permit Designer',version='1.3')
 ROOT=Path(__file__).parent
 app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
 GEOCODE='https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates'
@@ -16,13 +16,22 @@ SERVICES=[
 
 
 from assessor import retrieve, SketchError
+from county_lookup import lookup, COVERAGE
 
 @app.get('/api/assessor-sketch')
-async def assessor_sketch(address: str | None = None, account: str | None = None):
+async def assessor_sketch(address: str | None = None, account: str | None = None, county: str | None = None):
     try:
-        return await retrieve(address=address, account=account)
+        if account:
+            if county and county.lower() not in ('cleveland','canadian'):
+                raise SketchError(400,'Account lookup requires Cleveland or Canadian County; otherwise use a street address.')
+            return await retrieve(account=account, county=(county or 'cleveland').lower())
+        return await lookup(address or '', county=county)
     except SketchError as e:
         raise HTTPException(e.status, e.message)
+
+@app.get('/api/coverage')
+def coverage():
+    return COVERAGE
 
 @app.get('/api/property')
 async def building_lookup(address: str):

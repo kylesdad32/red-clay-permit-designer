@@ -7,6 +7,11 @@ import httpx
 BASE = 'https://property.spatialest.com/ok/cleveland/'
 IMAGES = 'https://api.spatialest.com/v1/ok/cleveland/images-api/'
 
+SPATIALEST = {
+    'cleveland': (BASE, 'cleveland-images'),
+    'canadian': ('https://property.spatialest.com/ok/canadian/', 'ok-canadian-images'),
+}
+
 class SketchError(Exception):
     def __init__(self, status, message):
         self.status, self.message = status, message
@@ -15,36 +20,41 @@ class SketchError(Exception):
 
 def street(address):
     value = address.split(',')[0].upper().strip()
+    for full, short in [('NORTHWEST','NW'),('NORTHEAST','NE'),('SOUTHWEST','SW'),('SOUTHEAST','SE'),('NORTH','N'),('SOUTH','S'),('EAST','E'),('WEST','W')]:
+        value=re.sub(r'\b'+full+r'\b',short,value)
+    value=re.sub(r'\b(N|S) (E|W)\b',r'\1\2',value)
     value = re.sub(r'\b(?:STREET|STR)\b', 'ST', value)
-    for full, short in [('AVENUE','AVE'),('DRIVE','DR'),('ROAD','RD'),('COURT','CT'),('LANE','LN'),('TERRACE','TER'),('PLACE','PL')]:
+    for full, short in [('AVENUE','AVE'),('DRIVE','DR'),('ROAD','RD'),('COURT','CT'),('LANE','LN'),('TERRACE','TER'),('PLACE','PL'),('BOULEVARD','BLVD'),('CIRCLE','CIR'),('PARKWAY','PKWY'),('HIGHWAY','HWY')]:
         value = re.sub(r'\b'+full+r'\b', short, value)
-    return re.sub(r'[^A-Z0-9 ]', '', re.sub(r'\s+', ' ', value)).strip()
+    return re.sub(r'\s+', ' ', re.sub(r'[^A-Z0-9 ]', '', value)).strip()
 
 
-def is_sketch(url):
+def is_sketch(url, county="cleveland"):
     p = urlparse(url)
     return (p.scheme == 'https' and p.netloc == 'image-cdn.spatialest.com'
-            and re.fullmatch(r'/image/cleveland-images/(?:med|sml|lrg)/Sketch/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png)', p.path) is not None)
+            and re.fullmatch(rf'/image/{SPATIALEST[county][1]}/(?:med|sml|lrg)/Sketch/[A-Za-z0-9_-]+\.(?:jpg|jpeg|png)', p.path) is not None)
 
 
-async def retrieve(address=None, account=None, client=None):
+async def retrieve(address=None, account=None, client=None, county="cleveland"):
+    base, collection = SPATIALEST[county]
+    images_api = f"https://api.spatialest.com/v1/ok/{county}/images-api/"
     if client is None:
         async with httpx.AsyncClient(timeout=25, follow_redirects=True,
                 headers={'User-Agent':'RedClayPermitDesigner/1.2'}) as c:
-            return await retrieve(address, account, c)
+            return await retrieve(address, account, c, county=county)
     try:
-        shell = await client.get(BASE)
+        shell = await client.get(base)
         shell.raise_for_status()
         token = re.search(r'name="csrf-token" content="([^"]+)"', shell.text)
         if not token:
             raise SketchError(502, 'Assessor session could not be initialized. Try again later.')
         headers = {'X-CSRF-TOKEN':token.group(1), 'X-Requested-With':'XMLHttpRequest',
-                   'Accept':'application/json', 'Referer':BASE}
+                   'Accept':'application/json', 'Referer':base}
         if address:
             term = street(address)
             if not re.match(r'^\d+\s+\S', term):
                 raise SketchError(400, 'Enter a complete street address.')
-            result = await client.post(BASE+'api/v2/search', headers=headers,
+            result = await client.post(base+'api/v2/search', headers=headers,
                 data={'filters[term]':term,'filters[category]':'address','page':'1','limit':'21'})
             result.raise_for_status()
             search = result.json()
@@ -55,24 +65,24 @@ async def retrieve(address=None, account=None, client=None):
                     'No unique assessor address match. Include the street number and complete street name.')
         if not re.fullmatch(r'\d{1,12}', str(account or '')):
             raise SketchError(400, 'A numeric assessor account or street address is required.')
-        record = await client.get(BASE+'api/v1/recordcard/'+str(account), headers=headers)
+        record = await client.get(base+'api/v1/recordcard/'+str(account), headers=headers)
         record.raise_for_status()
         data = record.json()
         header = data.get('parcel',{}).get('header',{})
-        actual = header.get('FormattedLocation','')
+        actual = header.get('FormattedLocation') or header.get('Situs','')
         if address and street(actual) != street(address):
             raise SketchError(409, 'Assessor result does not exactly match the requested street address.')
         image_id = str(data.get('imageid') or account)
         if not re.fullmatch(r'\d{1,12}',image_id):
             raise SketchError(502, 'Invalid assessor image identifier.')
-        listing = await client.get(IMAGES+image_id)
+        listing = await client.get(images_api+image_id+("&size=lrg" if county=="canadian" else ""))
         listing.raise_for_status()
         urls = listing.json()
         if not isinstance(urls,list):
             raise SketchError(502, 'Assessor image list format changed.')
         sketches = []
         for url in urls:
-            if not isinstance(url,str) or not is_sketch(url):
+            if not isinstance(url,str) or not is_sketch(url, county):
                 continue
             image = await client.get(url)
             image.raise_for_status()
@@ -85,8 +95,8 @@ async def retrieve(address=None, account=None, client=None):
         if not sketches:
             raise SketchError(404, 'The assessor has no published building sketch for this address.')
         return {'status':'found','account':str(account),'address':actual,
-            'record_url':BASE+'#/property/'+str(account),
-            'source':'Cleveland County Assessor / Spatialest',
+            'record_url':base+'#/property/'+str(account),
+            'source':county.title()+' County Assessor / Spatialest', 'county':county.title(),
             'sketch_url':sketches[0]['sketch_url'],'image_data':sketches[0]['image_data'],
             'sketches':sketches}
     except SketchError:

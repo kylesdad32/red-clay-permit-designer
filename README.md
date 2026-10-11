@@ -25,9 +25,11 @@ Test address: **420 SW 2nd St, Moore, OK 73160** resolves to **account 4889**, w
 
 ```sh
 python -m unittest discover -s tests -v
-python -m py_compile main.py assessor.py
+python -m py_compile main.py assessor.py county_lookup.py
 ```
 
 ## Scope
 
-Automatic sketches currently cover Cleveland County, Oklahoma. An assessor building sketch is a building-dimension reference, not a surveyed site plan or recorded plat. Dimensions remain the assessor's original raster labels. County service outages or missing/ambiguous records return explicit errors instead of unrelated imagery. Projects save in browser localStorage.
+Automatic sketches cover Cleveland, Oklahoma, Canadian and Grady counties, routed by the geocoded county rather than a city guess. McClain and Logan currently require manual upload of the original assessor sketch because their current provider blocks automated access; no parcel or aerial fallback is used. Missing and ambiguous assessor records return explicit errors. An assessor building sketch is a building-dimension reference, not a surveyed site plan or recorded plat. Dimensions remain the assessor's original raster labels. County service outages or missing/ambiguous records return explicit errors instead of unrelated imagery. Projects save in browser localStorage.
+
+Verified county samples: 420 SW 2nd St, Moore (Cleveland); 845 NW 49th St, Oklahoma City (Oklahoma); 12216 SW 15th Terrace, Yukon (Canadian); 1867 County Road 1250, Tuttle (Grady). `/api/coverage` reports county availability. Cities crossing county lines are routed per address; an address without a published sketch cannot return one.
