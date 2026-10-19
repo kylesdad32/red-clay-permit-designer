@@ -4,7 +4,9 @@ from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import httpx
 
-app=FastAPI(title='Red Clay Permit Designer',version='1.3')
+app=FastAPI(title='Red Clay Permit Designer',version='1.4')
+from permit_sheets import router as permit_sheets_router
+app.include_router(permit_sheets_router)
 ROOT=Path(__file__).parent
 app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
 GEOCODE='https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates'
