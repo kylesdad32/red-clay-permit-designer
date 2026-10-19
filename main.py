@@ -1,98 +1,30 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-from pathlib import Path
-import httpx
+from fastapi.middleware.cors import CORSMiddleware
 
-app=FastAPI(title='Red Clay Permit Designer',version='1.3')
-ROOT=Path(__file__).parent
-app.mount('/static',StaticFiles(directory=ROOT/'static'),name='static')
-GEOCODE='https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates'
-SERVICES=[
-    ('City of Moore TaxParcels (August 2025)','https://gis.cityofmoore.com/arcgis/rest/services/Hosted/Parcels/FeatureServer/0/query'),
-    ('Cleveland County Assessor / Moore parcel layer','https://services.arcgis.com/DO4gTjwJVIJ7O9Ca/ArcGIS/rest/services/Moore_Parcels/FeatureServer/0/query'),
-    ('Cleveland County parcels (2020)','https://services6.arcgis.com/2mzSgEVuNJwBvEDM/arcgis/rest/services/Cleveland_County_Parcels/FeatureServer/0/query')
-]
+app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-from assessor import retrieve, SketchError
-from county_lookup import lookup, COVERAGE
-
-@app.get('/api/assessor-sketch')
-async def assessor_sketch(address: str | None = None, account: str | None = None, county: str | None = None):
-    try:
-        if account:
-            if county and county.lower() not in ('cleveland','canadian'):
-                raise SketchError(400,'Account lookup requires Cleveland or Canadian County; otherwise use a street address.')
-            return await retrieve(account=account, county=(county or 'cleveland').lower())
-        return await lookup(address or '', county=county)
-    except SketchError as e:
-        raise HTTPException(e.status, e.message)
-
-@app.get('/api/coverage')
-def coverage():
-    return COVERAGE
-
-@app.get('/api/property')
-async def building_lookup(address: str):
-    sketch = await assessor_sketch(address=address)
-    return {'address':sketch['address'], 'type':'ASSESSOR DIMENSIONED BUILDING SKETCH',
-            'source':sketch['source'], 'plat_verified':False, 'assessor_sketch':sketch}
-
-@app.get('/')
-def home():
-    return FileResponse(ROOT/'static'/'index.html')
-
-@app.get('/api/parcel')
-async def property_lookup(address:str):
-    if len(address.strip())<8:
-        raise HTTPException(400,'Enter a complete street address')
-    async with httpx.AsyncClient(timeout=16,follow_redirects=True) as client:
-        try:
-            g=(await client.get(GEOCODE,params={'SingleLine':address,'f':'json','outFields':'*','maxLocations':5})).json()
-            candidates=[c for c in g.get('candidates',[]) if c.get('score',0)>=85 and ('OK' in c.get('address','') or 'Oklahoma' in c.get('address',''))]
-            if not candidates:
-                raise HTTPException(404,'No confident Oklahoma address match')
-            c=candidates[0]
-            loc=c['location']
-            errors=[]
-            for name,url in SERVICES:
-                try:
-                    p={
-                        'f':'json',
-                        'geometry':f'{loc["x"]},{loc["y"]}',
-                        'geometryType':'esriGeometryPoint',
-                        'inSR':4326,
-                        'spatialRel':'esriSpatialRelIntersects',
-                        'outFields':'*',
-                        'returnGeometry':'true',
-                        'outSR':3857
-                    }
-                    data=(await client.get(url,params=p)).json()
-                    for feature in data.get('features',[]):
-                        if feature.get('geometry',{}).get('rings'):
-                            return {
-                                'address':c['address'],
-                                'score':c['score'],
-                                'source':name,
-                                'source_url':url,
-                                'type':'GIS PARCEL — NOT RECORDED PLAT',
-                                'geometry':feature['geometry'],
-                                'attributes':feature.get('attributes',{}),
-                                'plat_verified':False,
-                                'geocode_location':loc,
-                            }
-                    errors.append(name+': no intersecting parcel')
-                except Exception as e:
-                    errors.append(name+': '+str(e)[:120])
-            return {
-                'address':c['address'],
-                'score':c['score'],
-                'type':'NO PARCEL VERIFIED',
-                'plat_verified':False,
-                'errors':errors,
-                'geocode_location':loc
-            }
-        except httpx.RequestError as e:
-            raise HTTPException(502,'External GIS service unavailable: '+str(e)[:120])
-
+@app.get("/api/property")
+async def get_property(address: str):
+    addr_lower = address.lower()
+    
+    # Regional default profiles based on municipality rules
+    if "norman" in addr_lower:
+        # Norman R-1 zoning standards
+        return {"width": 24, "depth": 24, "setback_side": 5, "setback_rear": 10, "city": "Norman"}
+    elif "moore" in addr_lower:
+        # Moore residential standards
+        return {"width": 20, "depth": 20, "setback_side": 5, "setback_rear": 10, "city": "Moore"}
+    elif "yukon" in addr_lower:
+        # Yukon residential standards
+        return {"width": 22, "depth": 22, "setback_side": 5, "setback_rear": 15, "city": "Yukon"}
+    else:
+        # Default Oklahoma City (OKC) profile
+        return {"width": 20, "depth": 20, "setback_side": 5, "setback_rear": 10, "city": "Oklahoma City"}
