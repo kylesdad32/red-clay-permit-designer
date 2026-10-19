@@ -23,7 +23,7 @@
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
 
-    <!-- TOP NAV BAR (Hidden on Print) -->
+    <!-- TOP NAV BAR -->
     <header class="no-print bg-slate-900 text-white shadow-md sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
             <div class="flex items-center space-x-3">
@@ -55,8 +55,12 @@
                     1. Property & Applicant Details
                 </h2>
                 <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Property Address</label>
-                    <input type="text" id="propAddress" value="3012 NW 30th St, Oklahoma City, OK 73112" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" oninput="updatePlot()">
+                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Customer Street Address</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="propAddress" value="3012 NW 30th St, Oklahoma City, OK 73112" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
+                        <button onclick="lookupProperty()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition">Find Property</button>
+                    </div>
+                    <p id="lookupStatus" class="text-xs text-slate-500 mt-1">Type address and click Find Property to pull assessor records.</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
@@ -197,7 +201,7 @@
                 <!-- SVG PLOTTER -->
                 <div class="w-full bg-slate-50 border border-slate-200 rounded-lg overflow-hidden flex justify-center items-center p-2">
                     <svg id="siteCanvas" viewBox="0 0 600 500" class="w-full h-auto max-h-[480px]">
-                        <!-- Rendered dynamically by JavaScript -->
+                        <!-- Rendered dynamically -->
                     </svg>
                 </div>
 
@@ -208,7 +212,7 @@
 
     </div>
 
-    <!-- PRINT / SUBMITTAL SHEET (Visible only during printing / PDF export) -->
+    <!-- PRINT / SUBMITTAL SHEET -->
     <div class="print-only print-page bg-white p-8 max-w-4xl mx-auto">
         <div class="border-b-2 border-slate-900 pb-4 mb-4 flex justify-between items-start">
             <div>
@@ -221,7 +225,6 @@
             </div>
         </div>
 
-        <!-- PRINT DETAILS GRID -->
         <div class="grid grid-cols-2 gap-4 text-xs mb-4 border border-slate-200 p-3 rounded">
             <div>
                 <p><strong>Property Address:</strong> <span id="pAddress"></span></p>
@@ -235,12 +238,10 @@
             </div>
         </div>
 
-        <!-- PRINT SVG DIAGRAM -->
         <div class="border border-slate-300 rounded p-2 mb-4 flex justify-center bg-slate-50">
             <svg id="printCanvas" viewBox="0 0 600 500" class="w-full h-[380px]"></svg>
         </div>
 
-        <!-- CONSTRUCTION SPECS TABLE -->
         <div class="mb-4">
             <h3 class="text-xs font-bold uppercase mb-2 text-slate-800 border-b pb-1">Structural & Code Specifications</h3>
             <table class="w-full text-xs text-left border-collapse">
@@ -271,7 +272,6 @@
             </table>
         </div>
 
-        <!-- SIGNATURE BLOCK -->
         <div class="mt-6 pt-4 border-t border-slate-300 text-xs grid grid-cols-2 gap-8">
             <div>
                 <p class="mb-6">Applicant Signature: ___________________________</p>
@@ -283,89 +283,30 @@
         </div>
     </div>
 
-    <!-- JAVASCRIPT LOGIC & CANVAS RENDERER -->
+    <!-- JAVASCRIPT LOGIC -->
     <script>
-        function updatePlot() {
-            // Retrieve Form Values
+        const RENDER_BACKEND_URL = "https://red-clay-permit-designer-1.onrender.com";
+
+        async function lookupProperty() {
             const address = document.getElementById('propAddress').value;
-            const name = document.getElementById('applicantName').value;
-            const phone = document.getElementById('applicantPhone').value;
-            const zone = document.getElementById('zoningZone').value;
-            
-            const structType = document.getElementById('structType').value;
-            const w = parseInt(document.getElementById('structWidth').value) || 20;
-            const d = parseInt(document.getElementById('structDepth').value) || 20;
-            
-            const sideSetback = parseInt(document.getElementById('sideSetback').value) || 5;
-            const rearSetback = parseInt(document.getElementById('rearSetback').value) || 10;
+            const statusEl = document.getElementById('lookupStatus');
+            statusEl.innerText = "Querying county assessor database...";
+            statusEl.className = "text-xs text-blue-600 mt-1 font-semibold";
 
-            const post = document.getElementById('postSize').value;
-            const footing = document.getElementById('footingDepth').value;
-            const pitch = document.getElementById('roofPitch').value;
-            const roof = document.getElementById('roofMaterial').value;
-
-            // Update UI Labels
-            document.getElementById('sideVal').innerText = sideSetback + ' ft';
-            document.getElementById('rearVal').innerText = rearSetback + ' ft';
-
-            // OKC Zoning Audit (5ft side, 5ft rear easement standard)
-            const panel = document.getElementById('compliancePanel');
-            const status = document.getElementById('complianceStatus');
-            const msg = document.getElementById('complianceMsg');
-            const icon = document.getElementById('complianceIcon');
-
-            let isCompliant = true;
-            let warningText = '';
-
-            if (sideSetback < 5) {
-                isCompliant = false;
-                warningText = 'OKC Zoning requires a minimum 5 ft side setback for accessory structures.';
-            } else if (rearSetback < 5) {
-                isCompliant = false;
-                warningText = 'Structure encroaches into the 5 ft rear utility easement zone.';
-            }
-
-            if (isCompliant) {
-                panel.className = "p-4 rounded-xl border flex items-center justify-between bg-emerald-50 border-emerald-200 text-emerald-800";
-                icon.className = "fa-solid fa-circle-check text-2xl text-emerald-600";
-                status.innerText = "OKC Zoning Compliant";
-                msg.innerText = "Setbacks and structure placement meet standard Oklahoma City Municipal Code requirements.";
-            } else {
-                panel.className = "p-4 rounded-xl border flex items-center justify-between bg-amber-50 border-amber-200 text-amber-800";
-                icon.className = "fa-solid fa-triangle-exclamation text-2xl text-amber-600";
-                status.innerText = "Setback Warning";
-                msg.innerText = warningText;
-            }
-
-            // Render Canvas
-            const svgContent = generateSVG(w, d, sideSetback, rearSetback, structType, address);
-            document.getElementById('siteCanvas').innerHTML = svgContent;
-            document.getElementById('printCanvas').innerHTML = svgContent;
-
-            // Sync Print Preview Fields
-            document.getElementById('pAddress').innerText = address;
-            document.getElementById('pName').innerText = name;
-            document.getElementById('pPhone').innerText = phone;
-            document.getElementById('pType').innerText = structType;
-            document.getElementById('pDims').innerText = `${w}' Wide x ${d}' Deep (${w * d} sq ft)`;
-            document.getElementById('pZone').innerText = zone;
-            document.getElementById('pPost').innerText = post;
-            document.getElementById('pFooting').innerText = footing;
-            document.getElementById('pPitch').innerText = pitch;
-            document.getElementById('pRoof').innerText = roof;
-            document.getElementById('printDate').innerText = new Date().toLocaleDateString();
-        }
-
-        function generateSVG(w, d, side, rear, type, address) {
-            // Plot Scale: 1 ft = 6 px
-            const scale = 6;
-            const lotW = 60 * scale;  // 360px (60ft)
-            const lotH = 75 * scale;  // 450px (75ft)
-            const offsetX = 120;
-            const offsetY = 25;
-
-            // Scaled Structure Dimensions
-            const sW = w * scale;
-            const sH = d * scale;
-
-            // Position Calculation (from top
+            try {
+                const response = await fetch(`${RENDER_BACKEND_URL}/api/property?address=${encodeURIComponent(address)}`);
+                if (!response.ok) throw new Error("Server returned status " + response.status);
+                
+                const data = await response.json();
+                statusEl.innerText = "Property record loaded successfully!";
+                statusEl.className = "text-xs text-emerald-600 mt-1 font-semibold";
+                
+                // If backend returns specific dimensions, update inputs here
+                if (data.width) document.getElementById('structWidth').value = data.width;
+                if (data.depth) document.getElementById('structDepth').value = data.depth;
+                
+                updatePlot();
+            } catch (err) {
+                console.warn("Backend lookup notice:", err);
+                statusEl.innerText = "Using standard local plotting configuration.";
+                statusEl.className = "text-xs text
