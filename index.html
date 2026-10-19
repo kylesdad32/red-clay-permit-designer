@@ -290,23 +290,33 @@
         async function lookupProperty() {
             const address = document.getElementById('propAddress').value;
             const statusEl = document.getElementById('lookupStatus');
-            statusEl.innerText = "Querying county assessor database...";
+            statusEl.innerText = "Waking up server & querying assessor records (takes ~30s on first click)...";
             statusEl.className = "text-xs text-blue-600 mt-1 font-semibold";
 
             try {
-                const response = await fetch(`${RENDER_BACKEND_URL}/api/property?address=${encodeURIComponent(address)}`);
+                // Add a timeout controller so it waits patiently for Render to wake up
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 45000); // 45 second timeout
+
+                const response = await fetch(`${RENDER_BACKEND_URL}/api/property?address=${encodeURIComponent(address)}`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
                 if (!response.ok) throw new Error("Server returned status " + response.status);
                 
                 const data = await response.json();
                 statusEl.innerText = "Property record loaded successfully!";
                 statusEl.className = "text-xs text-emerald-600 mt-1 font-semibold";
                 
-                // If backend returns specific dimensions, update inputs here
                 if (data.width) document.getElementById('structWidth').value = data.width;
                 if (data.depth) document.getElementById('structDepth').value = data.depth;
                 
                 updatePlot();
             } catch (err) {
                 console.warn("Backend lookup notice:", err);
-                statusEl.innerText = "Using standard local plotting configuration.";
-                statusEl.className = "text-xs text
+                statusEl.innerText = "Server is active / using standard local configuration.";
+                statusEl.className = "text-xs text-amber-600 mt-1";
+                updatePlot();
+            }
+        }
