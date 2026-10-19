@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Red Clay Permit Designer - OKC Site Plan Generator</title>
+    <title>Red Clay Permit Designer - Live Google Maps Integration</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -12,11 +12,8 @@
         @media print {
             .no-print { display: none !important; }
             .print-only { display: block !important; }
-            body { background: white !important; color: black !important; padding: 0 !important; }
-            .print-page { page-break-after: always; max-width: 100% !important; margin: 0 !important; padding: 0.5in !important; border: none !important; box-shadow: none !important; }
         }
         .print-only { display: none; }
-        .draggable-struct { cursor: move; }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 min-h-screen">
@@ -27,7 +24,7 @@
                 <i class="fa-solid fa-compass-drafting text-red-500 text-2xl"></i>
                 <div>
                     <h1 class="font-bold text-lg leading-tight">Red Clay Permit Designer</h1>
-                    <p class="text-xs text-slate-400">Oklahoma City, Moore, Norman & Yukon Permit Tool</p>
+                    <p class="text-xs text-slate-400">Live Google Maps & Building Footprint View</p>
                 </div>
             </div>
             <button onclick="window.print()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center space-x-2 transition">
@@ -42,32 +39,25 @@
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
                 <h2 class="font-semibold text-slate-800 text-base border-b border-slate-100 pb-2 flex items-center gap-2">
                     <i class="fa-solid fa-location-dot text-red-500"></i>
-                    1. Property & Assessor Plat
+                    1. Property Address Search
                 </h2>
                 <div>
                     <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Customer Street Address</label>
                     <div class="flex gap-2">
-                        <input type="text" id="propAddress" value="3012 NW 30th St, Oklahoma City, OK 73112" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" oninput="lookupProperty()">
-                        <button onclick="lookupProperty()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition cursor-pointer">Find Area</button>
+                        <input type="text" id="propAddress" value="3012 NW 30th St, Oklahoma City, OK 73112" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
+                        <button onclick="updateMapLocation()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition cursor-pointer">Load Map</button>
                     </div>
-                    <p id="lookupStatus" class="text-xs text-slate-500 mt-1">Automatically applies regional metro zoning rules.</p>
-                </div>
-
-                <!-- ASSESSOR PLAT IMAGE UPLOAD -->
-                <div>
-                    <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Upload Official County Plat / Sketch Image</label>
-                    <input type="file" id="platImageUpload" accept="image/*" onchange="loadPlatImage(event)" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 cursor-pointer">
-                    <p class="text-[11px] text-slate-400 mt-1">Upload screenshot of assessor map/plat to overlay the drawing.</p>
+                    <p id="lookupStatus" class="text-xs text-slate-500 mt-1">Loads Google Maps satellite & building layer.</p>
                 </div>
 
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Applicant Name</label>
-                        <input type="text" id="applicantName" value="Property Owner / Contractor" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" oninput="updatePlot()">
+                        <input type="text" id="applicantName" value="Property Owner / Contractor" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Phone Number</label>
-                        <input type="text" id="applicantPhone" value="405-802-6706" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" oninput="updatePlot()">
+                        <input type="text" id="applicantPhone" value="405-802-6706" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
                     </div>
                 </div>
             </div>
@@ -75,16 +65,16 @@
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-5 space-y-4">
                 <h2 class="font-semibold text-slate-800 text-base border-b border-slate-100 pb-2 flex items-center gap-2">
                     <i class="fa-solid fa-ruler-combined text-red-500"></i>
-                    2. Structure Dimensions & Placement
+                    2. Structure Dimensions
                 </h2>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Width (ft)</label>
-                        <input type="number" id="structWidth" value="20" min="5" max="60" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" oninput="updatePlot()">
+                        <input type="number" id="structWidth" value="20" min="5" max="60" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-xs font-semibold text-slate-600 uppercase mb-1">Depth (ft)</label>
-                        <input type="number" id="structDepth" value="20" min="5" max="60" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none" oninput="updatePlot()">
+                        <input type="number" id="structDepth" value="20" min="5" max="60" class="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:outline-none">
                     </div>
                 </div>
             </div>
@@ -95,137 +85,28 @@
                 <div class="flex justify-between items-center">
                     <h2 class="font-semibold text-slate-800 text-base flex items-center gap-2">
                         <i class="fa-solid fa-map-location-dot text-red-500"></i>
-                        Generated Site Plan (Click & Drag Structure)
+                        Live Google Maps View (Satellite & Buildings Layer)
                     </h2>
-                    <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-mono">Scale: 1" = 10'</span>
                 </div>
-                <div class="w-full bg-slate-50 border border-slate-200 rounded-lg overflow-hidden flex justify-center items-center p-2">
-                    <svg id="siteCanvas" viewBox="0 0 600 500" class="w-full h-auto max-h-[480px] cursor-crosshair"></svg>
+                <!-- EMBEDDED GOOGLE MAP FRAME -->
+                <div class="w-full h-[450px] bg-slate-200 rounded-lg overflow-hidden relative border border-slate-300">
+                    <iframe id="googleMapFrame" width="100%" height="100%" style="border:0;" loading="lazy" allowfullscreen 
+                        src="https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY&q=3012+NW+30th+St+Oklahoma+City+OK&maptype=satellite">
+                    </iframe>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
-        const RENDER_BACKEND_URL = "https://red-clay-permit-designer-1.onrender.com";
-        let customX = null;
-        let customY = null;
-        let isDragging = false;
-        let startX, startY;
-        let uploadedPlatDataUrl = null;
-
-        async function lookupProperty() {
+        function updateMapLocation() {
             const address = document.getElementById('propAddress').value;
-            const statusEl = document.getElementById('lookupStatus');
-            try {
-                const response = await fetch(`${RENDER_BACKEND_URL}/api/property?address=${encodeURIComponent(address)}`);
-                if (!response.ok) throw new Error("Status " + response.status);
-                const data = await response.json();
-                statusEl.innerText = `Matched jurisdiction: ${data.city}`;
-                statusEl.className = "text-xs text-emerald-600 mt-1 font-semibold";
-                updatePlot();
-            } catch (err) {
-                statusEl.innerText = "Using metro zoning default rules.";
-                statusEl.className = "text-xs text-amber-600 mt-1";
-                updatePlot();
-            }
+            const encodedAddr = encodeURIComponent(address);
+            const iframe = document.getElementById('googleMapFrame');
+            // Updates iframe source to target the exact entered address with satellite view
+            iframe.src = `https://www.google.com/maps/embed/v1/place?key=YOUR_GOOGLE_MAPS_API_KEY&q=${encodedAddr}&maptype=satellite`;
+            document.getElementById('lookupStatus').innerText = "Google Maps updated for " + address;
         }
-
-        function loadPlatImage(event) {
-            const file = event.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    uploadedPlatDataUrl = e.target.result;
-                    updatePlot();
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function updatePlot() {
-            const w = parseInt(document.getElementById('structWidth').value) || 20;
-            const d = parseInt(document.getElementById('structDepth').value) || 20;
-            const scale = 6;
-            const lotW = 60 * scale; 
-            const lotH = 75 * scale; 
-            const offsetX = 120;
-            const offsetY = 25;
-            const sW = w * scale;
-            const sH = d * scale;
-
-            if (customX === null || customY === null) {
-                customX = offsetX + 80;
-                customY = offsetY + 100;
-            }
-
-            const svg = document.getElementById('siteCanvas');
-            let backgroundContent = `<rect x="${offsetX}" y="${offsetY}" width="${lotW}" height="${lotH}" fill="#ffffff" stroke="#334155" stroke-width="3" stroke-dasharray="8,4" />`;
-            
-            if (uploadedPlatDataUrl) {
-                backgroundContent = `<image href="${uploadedPlatDataUrl}" x="${offsetX}" y="${offsetY}" width="${lotW}" height="${lotH}" preserveAspectRatio="none" opacity="0.75" />`;
-            }
-
-            svg.innerHTML = `
-                <rect x="0" y="0" width="600" height="500" fill="#f8fafc" />
-                ${backgroundContent}
-                <text x="${offsetX + lotW/2}" y="${offsetY - 8}" text-anchor="middle" font-size="10" font-weight="bold" fill="#475569">PROPERTY LOT BOUNDARY</text>
-                
-                <!-- DRAGGABLE STRUCTURE -->
-                <g id="draggableGroup" class="draggable-struct" style="cursor: grab;">
-                    <rect id="structRect" x="${customX}" y="${customY}" width="${sW}" height="${sH}" fill="#fca5a5" stroke="#b91c1c" stroke-width="2.5" rx="2" />
-                    <text x="${customX + sW/2}" y="${customY + sH/2 + 4}" text-anchor="middle" font-size="11" font-weight="bold" fill="#7f1d1d">CARPORT / PATIO</text>
-                    <text x="${customX + sW/2}" y="${customY + sH/2 + 16}" text-anchor="middle" font-size="9" font-weight="bold" fill="#991b1b">${w}' x ${d}'</text>
-                </g>
-            `;
-            setupDragging();
-        }
-
-        function setupDragging() {
-            const group = document.getElementById('draggableGroup');
-            if (!group) return;
-            group.onmousedown = function(e) {
-                isDragging = true;
-                startX = e.clientX;
-                startY = e.clientY;
-                document.onmousemove = onMouseMove;
-                document.onmouseup = onMouseUp;
-            };
-        }
-
-        function onMouseMove(e) {
-            if (!isDragging) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            startX = e.clientX;
-            startY = e.clientY;
-            customX += dx;
-            customY += dy;
-
-            const rect = document.getElementById('structRect');
-            if (rect) {
-                rect.setAttribute('x', customX);
-                rect.setAttribute('y', customY);
-            }
-            const textEls = document.querySelectorAll('#draggableGroup text');
-            const w = parseInt(document.getElementById('structWidth').value) || 20;
-            const d = parseInt(document.getElementById('structDepth').value) || 20;
-            const scale = 6;
-            if (textEls.length >= 2) {
-                textEls[0].setAttribute('x', customX + (w*scale)/2);
-                textEls[0].setAttribute('y', customY + (d*scale)/2 + 4);
-                textEls[1].setAttribute('x', customX + (w*scale)/2);
-                textEls[1].setAttribute('y', customY + (d*scale)/2 + 16);
-            }
-        }
-
-        function onMouseUp() {
-            isDragging = false;
-            document.onmousemove = null;
-            document.onmouseup = null;
-        }
-
-        window.onload = updatePlot;
     </script>
 </body>
 </html>
